@@ -1,8 +1,31 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import { AppBar, Menu, Portal } from '@skeletonlabs/skeleton-svelte';
+	import { AppBar, Avatar, Menu, Portal } from '@skeletonlabs/skeleton-svelte';
 	import { MenuIcon } from 'lucide-svelte';
+	import { onMount } from 'svelte'
+	import { msalInstance } from '$lib/auth/msal';
+	import { signInRedirect, signOut } from '$lib/auth/action';
+	import type { AccountInfo } from '@azure/msal-browser';
+
+	let account: AccountInfo | null = $state(null)
+
+	onMount(async () => {
+		if (!msalInstance) return;
+
+		// Process the redirect response if we just came back from Entra
+		const result = await msalInstance.handleRedirectPromise();
+
+		// Pick an account (needed for acquireTokenSilent)
+		const accounts = msalInstance.getAllAccounts();
+		if (result?.account) {
+		msalInstance.setActiveAccount(result.account);
+		} else if (accounts.length === 1) {
+		msalInstance.setActiveAccount(accounts[0]);
+		}
+
+		account = msalInstance?.getActiveAccount()
+	});
 
 	let { children } = $props();
 </script>
@@ -33,6 +56,27 @@
 				<p class="text-2xl">Combined Inventory</p>
 			</a>
 		</AppBar.Headline>
+		<AppBar.Trail>
+			<Menu>
+				<Menu.Trigger>
+					<Avatar class="size-12">
+						<Avatar.Fallback>{account?.name?.charAt(0)}</Avatar.Fallback>
+					</Avatar>
+				</Menu.Trigger>
+				<Portal>
+					<Menu.Positioner>
+						<Menu.Content>
+							<Menu.Item value="signIn" onclick={signInRedirect}>
+								Sign In
+							</Menu.Item>
+							<Menu.Item value="signOut" onclick={signOut}>
+								Sign Out
+							</Menu.Item>
+						</Menu.Content>
+					</Menu.Positioner>
+				</Portal>
+			</Menu>
+		</AppBar.Trail>
 	</AppBar.Toolbar>
 </AppBar>
 {@render children()}

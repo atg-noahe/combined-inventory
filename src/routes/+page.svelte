@@ -1,3 +1,12 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
-<a href="/devices">Devices Page</a>
+<script lang="ts">
+	import { msalInstance } from "$lib/auth/msal";
+	import type { AccountInfo } from "@azure/msal-browser";
+	import { onMount } from "svelte";
+	let account: AccountInfo | null = $state(null)
+	onMount(() => {
+		if (!msalInstance) return;
+		account = msalInstance.getActiveAccount();
+	})
+</script>
+
+Hello, { account?.name }
