@@ -2,32 +2,35 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { AppBar, Avatar, Menu, Portal } from '@skeletonlabs/skeleton-svelte';
+	import { ConnectMSAL, msalInstance } from '$lib/auth/msal.svelte';
 	import { MenuIcon } from 'lucide-svelte';
 	import { onMount } from 'svelte'
-	import { msalInstance } from '$lib/auth/msal';
-	import { signInRedirect, signOut } from '$lib/auth/action';
-	import type { AccountInfo } from '@azure/msal-browser';
-
-	let account: AccountInfo | null = $state(null)
+	import { authInfo } from '$lib/auth/msal.svelte';
+	import { goto } from '$app/navigation';
 
 	onMount(async () => {
-		if (!msalInstance) return;
+		msalInstance.handleRedirectPromise().then((tokenResponse) => {
+			if (tokenResponse !== null) {
+				console.log("Handling Redirect")
+				authInfo.token = tokenResponse.accessToken;
+				authInfo.account = tokenResponse.account;
+			}
+			else {
+				console.log("Logging In")
+				ConnectMSAL();
+			}
+		})
 
-		// Process the redirect response if we just came back from Entra
-		const result = await msalInstance.handleRedirectPromise();
-
-		// Pick an account (needed for acquireTokenSilent)
-		const accounts = msalInstance.getAllAccounts();
-		if (result?.account) {
-		msalInstance.setActiveAccount(result.account);
-		} else if (accounts.length === 1) {
-		msalInstance.setActiveAccount(accounts[0]);
-		}
-
-		account = msalInstance?.getActiveAccount()
 	});
 
+	function signOut() {
+		msalInstance.logoutRedirect({
+			postLogoutRedirectUri: "/auth/"
+		})
+	}
+
 	let { children } = $props();
+
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
@@ -60,13 +63,12 @@
 			<Menu>
 				<Menu.Trigger>
 					<Avatar class="size-12">
-						<Avatar.Fallback>{account?.name?.charAt(0)}</Avatar.Fallback>
 					</Avatar>
 				</Menu.Trigger>
 				<Portal>
 					<Menu.Positioner>
 						<Menu.Content>
-							<Menu.Item value="signIn" onclick={signInRedirect}>
+							<Menu.Item value="signIn">
 								Sign In
 							</Menu.Item>
 							<Menu.Item value="signOut" onclick={signOut}>
