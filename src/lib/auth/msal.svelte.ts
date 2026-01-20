@@ -1,4 +1,5 @@
 import { PublicClientApplication, type AccountInfo, type AuthenticationResult } from "@azure/msal-browser";
+import { GetAccountResult } from "@azure/msal-browser/custom-auth";
 
 const msalConfig = {
     auth: {
@@ -11,34 +12,49 @@ const msalConfig = {
 export const msalInstance = new PublicClientApplication(msalConfig);
 await msalInstance.initialize();
 
-export var authInfo: {token: string|null, account: AccountInfo|null} = $state({
-    token: null,
+export var authInfo: {account: AccountInfo|null} = $state({
     account: null
 })
 
 export async function ConnectMSAL() {
-    const accounts = msalInstance.getAllAccounts()
+    const accounts = msalInstance.getAllAccounts();
+    const activeAccount = msalInstance.getActiveAccount();
 
-    const scopes = ["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]
+    const scopes = ["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"];
+
+    if (activeAccount) {
+        authInfo.account =  activeAccount
+    }
 
     if (accounts.length === 0) {
-        console.log("Zero")
+        console.log("Zero");
         try {
             const res: AuthenticationResult = await msalInstance.ssoSilent({scopes});
-            authInfo.account = res.account;
-            authInfo.token = res.accessToken;
+            msalInstance.setActiveAccount(res.account);
         }
         catch {
-            await msalInstance.acquireTokenRedirect({scopes});
+            const res = await msalInstance.acquireTokenPopup({scopes});
+            msalInstance.setActiveAccount(res.account);
         }
     }
     else if (accounts.length === 1) {
-        console.log("One")
+        console.log("One");
         const account = accounts[0];
-        msalInstance.setActiveAccount(account)
+        msalInstance.setActiveAccount(account);
     }
     else {
-        console.log("Many")
+        console.log("Many");
+        const res = await msalInstance.acquireTokenPopup({scopes});
+        msalInstance.setActiveAccount(res.account);
     }
     authInfo.account = msalInstance.getActiveAccount();
+}
+
+export async function GetToken(scopes: string[]) : Promise<string> {
+    const resp = msalInstance.acquireTokenSilent({scopes});
+    if (resp) {
+        return (await resp).accessToken
+    }
+    const res = await msalInstance.acquireTokenPopup({scopes})
+    return res.accessToken
 }

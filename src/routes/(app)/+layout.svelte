@@ -6,22 +6,17 @@
 	import { MenuIcon } from 'lucide-svelte';
 	import { onMount } from 'svelte'
 	import { authInfo } from '$lib/auth/msal.svelte';
-	import { goto } from '$app/navigation';
 
-	onMount(async () => {
-		msalInstance.handleRedirectPromise().then((tokenResponse) => {
-			if (tokenResponse !== null) {
-				console.log("Handling Redirect")
-				authInfo.token = tokenResponse.accessToken;
-				authInfo.account = tokenResponse.account;
-			}
-			else {
-				console.log("Logging In")
-				ConnectMSAL();
-			}
-		})
-
-	});
+	const loaded = msalInstance.handleRedirectPromise().then(async (tokenResponse) => {
+		if (tokenResponse !== null) {
+			console.log("Handling Redirect")
+			authInfo.account = tokenResponse.account;
+		}
+		else {
+			console.log("Logging In")
+			await ConnectMSAL();
+		}
+	})
 
 	function signOut() {
 		msalInstance.logoutRedirect({
@@ -34,6 +29,9 @@
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
+{#await loaded}
+Logging you in!
+{:then res} 
 <AppBar>
 	<AppBar.Toolbar class="grid-cols-[auto_1fr_auto]">
 		<AppBar.Lead>
@@ -82,3 +80,4 @@
 	</AppBar.Toolbar>
 </AppBar>
 {@render children()}
+{/await}

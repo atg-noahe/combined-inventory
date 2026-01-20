@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { getAccessToken } from "$lib/auth/action";
 	import type { Device } from "$lib/inventory/devices";
 	import { onMount } from "svelte";
     import Fuse from "fuse.js";
 	import { Pagination } from "@skeletonlabs/skeleton-svelte";
 	import { ArrowLeftIcon, ArrowRightIcon, Ellipsis } from "lucide-svelte";
+	import { GetToken } from "$lib/auth/msal.svelte";
     const PAGE_SIZE = 25
 
     let devices: Device[] = $state([]);
@@ -17,7 +17,7 @@
     };
     let devIndex: Fuse<Device> = $derived(new Fuse(devices, options))
     onMount(async () => {
-        const token = await getAccessToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
+        const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
         const resp = await fetch('https://api.atgfw.com/api/combined-inventory/devices', {
             headers: {
                 'Authorization': `Bearer ${token}`
