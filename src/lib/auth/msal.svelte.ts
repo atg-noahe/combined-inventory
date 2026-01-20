@@ -1,3 +1,4 @@
+import { browser } from "$app/environment";
 import { PublicClientApplication, type AccountInfo, type AuthenticationResult } from "@azure/msal-browser";
 import { GetAccountResult } from "@azure/msal-browser/custom-auth";
 
@@ -17,6 +18,9 @@ export var authInfo: {account: AccountInfo|null} = $state({
 })
 
 export async function ConnectMSAL() {
+    if (!browser) {
+        throw "This must be run in a browser"
+    }
     const accounts = msalInstance.getAllAccounts();
     const activeAccount = msalInstance.getActiveAccount();
 

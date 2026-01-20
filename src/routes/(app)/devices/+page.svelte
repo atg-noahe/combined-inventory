@@ -2,10 +2,13 @@
 	import type { Device } from "$lib/inventory/devices";
 	import { onMount } from "svelte";
     import Fuse from "fuse.js";
-	import { Pagination } from "@skeletonlabs/skeleton-svelte";
+	import { Pagination, Popover, Portal } from "@skeletonlabs/skeleton-svelte";
 	import { ArrowLeftIcon, ArrowRightIcon, Ellipsis } from "lucide-svelte";
 	import { GetToken } from "$lib/auth/msal.svelte";
     const PAGE_SIZE = 25
+
+    let selected_devices: string[] = $state([]);
+    let show_devices: boolean = $state(false);
 
     let devices: Device[] = $state([]);
     const options = {
@@ -15,7 +18,18 @@
             "org_name",
         ]
     };
-    let devIndex: Fuse<Device> = $derived(new Fuse(devices, options))
+    let devIndex: Fuse<Device> = $derived(new Fuse(devices, options));
+    
+    function CheckboxHandler(ev: Event & { currentTarget: EventTarget & HTMLInputElement}) {
+        const val = ev.currentTarget.value;
+        if (selected_devices.includes(val)) {
+            selected_devices = selected_devices.filter((dev) => dev !== val);
+        }
+        else {
+            selected_devices.push(val);
+        }
+    }
+    
     onMount(async () => {
         const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
         const resp = await fetch('https://api.atgfw.com/api/combined-inventory/devices', {
@@ -34,6 +48,40 @@
 </script>
 
 <div class="m-5">
+    {#if selected_devices.length > 0}
+        <div class="flex flex-row justify-between">
+            <button class="flex flex-row items-center p-2 " onclick={() => show_devices = !show_devices}>
+                {#if show_devices}
+                    <span class="icon-[material-symbols--expand-circle-down-rounded]" style="width: 1.2em; height: 1.2em;"></span>
+                {:else}
+                    <span class="icon-[material-symbols--expand-circle-right-rounded]" style="width: 1.2em; height: 1.2em;"></span>
+                {/if}
+                &nbsp;
+                <div>
+                    {selected_devices.length} Device(s) Selected
+                </div>
+            </button>
+            <div>
+                <button type="button" class="btn preset-outlined" onclick={() => {
+                    selected_devices = [];
+                    show_devices = false;}}>
+                    Discard List
+                </button>
+                <button type="button" disabled={true} class="btn preset-filled-error-500 text-white">
+                    Unmonitor Devices
+                </button>
+            </div>
+        </div>
+        {#if show_devices}
+        <div class="my-2 p-2 rounded-2xl border">
+            {#each selected_devices as device}
+            <div>
+                {JSON.parse(device).device_name}
+            </div>
+            {/each}
+        </div>
+        {/if}
+    {/if}
     <div>
         <input class="input" type="search" placeholder="Search by Device Name, Org Name, Etc" bind:value={filter}>
     </div>
@@ -42,13 +90,15 @@
             <thead>
                 <tr>
                     <th>
+                    </th>
+                    <th>
                         Device Name
                     </th>
                     <th>
                         Organization Name
                     </th>
                     <th>
-                        Sources
+                        Status
                     </th>
                     <th>
                         Last Seen
@@ -58,6 +108,10 @@
             <tbody>
                 {#each filtered_devices.slice(start, end) as device}
                     <tr>
+                        <td>
+                            <input class="checkbox" type="checkbox" checked={selected_devices.includes(JSON.stringify(device))}
+                            value={JSON.stringify(device)} oninput={CheckboxHandler}/>
+                        </td>
                         <td>
                             {device.device_name}
                         </td>
@@ -73,7 +127,7 @@
                                 <span class="badge bg-red-800">ImmyBot</span>
                             {/if}
                             {#if device.ninja_id}
-                            <a href="http://atgfw.immy.bot/computers/{device.immybot_id}">
+                            <a href="https://app.ninjarmm.com/#/deviceDashboard/{device.ninja_id}/overview">
                                 <span class="badge bg-green-800">NinjaRMM</span>
                             </a>
                             {:else}
