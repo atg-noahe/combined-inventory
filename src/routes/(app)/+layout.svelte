@@ -1,10 +1,9 @@
 <script lang="ts">
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '$lib/assets/favicon.ico';
 	import { AppBar, Avatar, Menu, Portal } from '@skeletonlabs/skeleton-svelte';
 	import { ConnectMSAL, msalInstance } from '$lib/auth/msal.svelte';
-	import { MenuIcon } from 'lucide-svelte';
-	import { onMount } from 'svelte'
+	import { House, MenuIcon } from 'lucide-svelte';
 	import { authInfo } from '$lib/auth/msal.svelte';
 
 	const loaded = msalInstance.handleRedirectPromise().then(async (tokenResponse) => {
@@ -33,28 +32,18 @@
 Logging you in!
 {:then res} 
 <AppBar>
-	<AppBar.Toolbar class="grid-cols-[auto_1fr_auto]">
+	<AppBar.Toolbar class="grid-cols-[auto_1fr_auto] mx-auto container">
 		<AppBar.Lead>
-			<Menu>
-				<Menu.Trigger>
-					<MenuIcon class="btn-icon btn-icon-lg hover:preset-tonal" />
-				</Menu.Trigger>
-				<Portal>
-					<Menu.Positioner>
-						<Menu.Content>
-							<a href="/devices">
-								<Menu.Item value="devices">
-									Devices
-								</Menu.Item>
-							</a>
-						</Menu.Content>
-					</Menu.Positioner>
-				</Portal>
-			</Menu>
+			<a href="/">
+				<House></House>
+			</a>
 		</AppBar.Lead>
 		<AppBar.Headline>
-			<a href="/">
-				<p class="text-2xl">Combined Inventory</p>
+			<a href="/devices" class="btn hover:bg-secondary-50-950 h-full">
+				Devices
+			</a>
+			<a href="/organizations" class="btn hover:bg-secondary-50-950 h-full">
+				Organizations
 			</a>
 		</AppBar.Headline>
 		<AppBar.Trail>

@@ -5,10 +5,17 @@
 	import { Pagination, Popover, Portal } from "@skeletonlabs/skeleton-svelte";
 	import { ArrowLeftIcon, ArrowRightIcon, Ellipsis } from "lucide-svelte";
 	import { GetToken } from "$lib/auth/msal.svelte";
+	import Spinner from "$lib/components/spinner.svelte";
     const PAGE_SIZE = 25
 
     let selected_devices: string[] = $state([]);
     let show_devices: boolean = $state(false);
+
+    function get_last_seen(device: Device): Date {
+        const ninja_date = device.ninja_last_seen ? new Date(device.ninja_last_seen) : new Date(0)
+        const immy_date = device.immybot_last_seen ? new Date(device.immybot_last_seen) : new Date(0)
+        return ninja_date > immy_date ? ninja_date : immy_date;
+    }
 
     let devices: Device[] = $state([]);
     const options = {
@@ -16,6 +23,8 @@
         keys: [
             "device_name",
             "org_name",
+            "operating_system",
+            "public_ip"
         ]
     };
     let devIndex: Fuse<Device> = $derived(new Fuse(devices, options));
@@ -47,6 +56,7 @@
     let filtered_devices = $derived((filter ? devIndex.search(filter).map(r => r.item): devices))
 </script>
 
+{#if devices.length != 0}
 <div class="m-5">
     {#if selected_devices.length > 0}
         <div class="flex flex-row justify-between">
@@ -98,6 +108,12 @@
                         Organization Name
                     </th>
                     <th>
+                        Operating System
+                    </th>
+                    <th>
+                        Public IP
+                    </th>
+                    <th>
                         Status
                     </th>
                     <th>
@@ -118,24 +134,29 @@
                         <td>
                             {device.org_name}
                         </td>
+                        <td>{device.operating_system}</td>
+                        <td>{device.public_ip}</td>
                         <td>
+                            {#if device.atg_id}
+                            <span class="badge bg-green-800" title={`ATG ID: ${device.atg_id}`}>ATG ID</span>
+                            {/if}
                             {#if device.immybot_id}
                             <a href="http://atgfw.immy.bot/computers/{device.immybot_id}">
-                                <span class="badge bg-green-800">ImmyBot</span>
+                                <span class="badge bg-green-800" title={`ImmyBot ID: ${device.immybot_id}`}>ImmyBot</span>
                             </a>
                             {:else}
                                 <span class="badge bg-red-800">ImmyBot</span>
                             {/if}
                             {#if device.ninja_id}
                             <a href="https://app.ninjarmm.com/#/deviceDashboard/{device.ninja_id}/overview">
-                                <span class="badge bg-green-800">NinjaRMM</span>
+                                <span class="badge bg-green-800" title={`Ninja ID: ${device.ninja_id}`}>NinjaRMM</span>
                             </a>
                             {:else}
                                 <span class="badge bg-red-800">NinjaRMM</span>
                             {/if}
                         </td>
                         <td>
-                            {device.last_seen}
+                            {get_last_seen(device).toLocaleString()}
                         </td>
                     </tr>
                 {/each}
@@ -164,3 +185,8 @@
         </Pagination.NextTrigger>
     </Pagination>
 </div>
+{:else}
+<div class="w-full flex flex-row justify-center mt-30">
+    <Spinner size="lg"></Spinner>
+</div>
+{/if}
