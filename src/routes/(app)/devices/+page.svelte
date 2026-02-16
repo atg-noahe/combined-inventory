@@ -3,11 +3,12 @@
 	import { onMount } from "svelte";
     import Fuse from "fuse.js";
 	import { Dialog, Menu, Pagination, Portal } from "@skeletonlabs/skeleton-svelte";
-	import { ArrowLeftIcon, ArrowRightIcon, Funnel } from "lucide-svelte";
+	import { ArrowLeftIcon, ArrowRightIcon, Funnel, X } from "lucide-svelte";
 	import { GetToken } from "$lib/auth/msal.svelte";
 	import Spinner from "$lib/components/spinner.svelte";
     import { DateTime } from "luxon";
 	import FilterButton, { type FilterOption } from "$lib/components/FilterButton.svelte";
+	import SearchFilter from "$lib/components/SearchFilter.svelte";
 	import { toaster } from "$lib/toast";
     import { v4 } from 'uuid'
         const PAGE_SIZE = 25
@@ -33,6 +34,13 @@
         {"name": "Ninja", "value": "optional"},
         {"name": "ATG ID", "value": "optional"}
     ])
+
+    // Org name filter
+    let orgFilterValue: string[] = $state([]);
+    let orgFilterItems = $derived(
+        [...new Set(devices.map(d => d.org_name).filter((n): n is string => n != null))].sort()
+            .map(name => ({ label: name, value: name }))
+    );
 
     function get_last_seen(device: Device): Date {
         const ninja_date = device.ninja_last_seen ? new Date(device.ninja_last_seen) : new Date(0)
@@ -74,7 +82,23 @@
 
     const start = $derived((page-1) * PAGE_SIZE);
     const end = $derived(start + PAGE_SIZE);
-    let filtered_devices = $derived((filter ? devIndex.search(filter).map(r => r.item): devices));
+    let filtered_devices = $derived.by(() => {
+        let result = filter ? devIndex.search(filter).map(r => r.item) : devices;
+        for (const f of filters) {
+            if (f.value === "optional") continue;
+            const required = f.value === "required";
+            result = result.filter(d => {
+                if (f.name === "ImmyBot") return required ? d.immybot_id != null : d.immybot_id == null;
+                if (f.name === "Ninja")   return required ? d.ninja_id != null : d.ninja_id == null;
+                if (f.name === "ATG ID")  return required ? d.atg_id != null : d.atg_id == null;
+                return true;
+            });
+        }
+        if (orgFilterValue.length > 0) {
+            result = result.filter(d => d.org_name != null && orgFilterValue.includes(d.org_name));
+        }
+        return result;
+    });
 
 
 	function CheckboxHandler(device: DeviceEntry) {
@@ -182,6 +206,24 @@
         </div>
         {/if}
     {/if}
+    {#if filters.some(f => f.value !== "optional") || orgFilterValue.length > 0}
+    <div class="flex flex-wrap gap-2 mb-2">
+        {#each filters.filter(f => f.value !== "optional") as f (f.name)}
+            <button class="badge preset-filled-surface-200-800 gap-1 cursor-pointer"
+                onclick={() => { f.value = "optional"; }}>
+                {f.name}: {f.value}
+                <X size={14}></X>
+            </button>
+        {/each}
+        {#each orgFilterValue as org (org)}
+            <button class="badge preset-filled-surface-200-800 gap-1 cursor-pointer"
+                onclick={() => { orgFilterValue = orgFilterValue.filter(v => v !== org); }}>
+                Org: {org}
+                <X size={14}></X>
+            </button>
+        {/each}
+    </div>
+    {/if}
     <div>
         <input class="input" type="search" placeholder="Search by Device Name, Org Name, Etc" bind:value={filter}>
     </div>
@@ -192,7 +234,12 @@
                     <th>
                     </th>
                     <th> Device Name </th>
-                    <th> Organization Name </th>
+                    <th>
+                        <div class="flex flex-row gap-2">
+                            <SearchFilter items={orgFilterItems} bind:value={orgFilterValue}></SearchFilter>
+                            Organization Name
+                        </div>
+                    </th>
                     <th> Operating System </th>
                     <th> Public IP </th>
                     <th>
