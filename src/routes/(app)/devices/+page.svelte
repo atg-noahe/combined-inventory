@@ -15,6 +15,7 @@
     let selected_devices: DeviceEntry[] = $state([]);
     let show_devices: boolean = $state(false);
     let devices: DeviceEntry[] = $state([]);
+    let deleting: boolean = $state(false);
 
     const options = {
         threshold: 0.1,
@@ -87,6 +88,7 @@
     }
 
     async function deleteSelectedDevices() {
+        deleting = true;
         try {
             const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
             const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/devices/delete`, {
@@ -99,6 +101,7 @@
             });
             if (resp.ok) {
                 devices = devices.filter(d => !selected_devices.includes(d));
+                toaster.success({ title: "Success", description: `Deleted ${selected_devices.length} device(s).` });
                 selected_devices = [];
                 show_devices = false;
             } else {
@@ -106,6 +109,8 @@
             }
         } catch (e) {
             toaster.error({ title: "Error", description: `${e}` });
+        } finally {
+            deleting = false;
         }
     }
 </script>
@@ -152,7 +157,13 @@
                                     This processs cannot be reversed
                                 </Dialog.Description>
                                 <footer class="flex justify-end gap-2">
-                                    <button type="button" class="btn preset-filled" onclick={deleteSelectedDevices}>Yes, delete them</button>
+                                    <button type="button" class="btn preset-filled" onclick={deleteSelectedDevices} disabled={deleting}>
+                                        {#if deleting}
+                                            <Spinner size="sm" /> Deleting...
+                                        {:else}
+                                            Yes, delete them
+                                        {/if}
+                                    </button>
                                     <Dialog.CloseTrigger class="btn preset-tonal">Cancel</Dialog.CloseTrigger>
                                 </footer>
                             </Dialog.Content>
