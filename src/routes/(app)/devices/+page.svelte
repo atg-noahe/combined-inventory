@@ -8,6 +8,7 @@
 	import Spinner from "$lib/components/spinner.svelte";
     import { DateTime } from "luxon";
 	import FilterButton, { type FilterOption } from "$lib/components/FilterButton.svelte";
+	import { toaster } from "$lib/toast";
     import { v4 } from 'uuid'
         const PAGE_SIZE = 25
 
@@ -46,7 +47,7 @@
     
     onMount(async () => {
         const urlParams = new URLSearchParams(window.location.search)
-        let data_url = new URL('https://api.atgfw.com/api/combined-inventory/devices')
+        let data_url = new URL(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/devices`)
         let org_id = urlParams.get('org_id')
         if (org_id) {
             data_url.searchParams.set("org_id", org_id)
@@ -85,8 +86,27 @@
         }
     }
 
-    function deleteSelectedDevices() {
-        console.log(selected_devices)
+    async function deleteSelectedDevices() {
+        try {
+            const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
+            const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/devices/delete`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(selected_devices.map(({ object_id, ...device }) => device))
+            });
+            if (resp.ok) {
+                devices = devices.filter(d => !selected_devices.includes(d));
+                selected_devices = [];
+                show_devices = false;
+            } else {
+                toaster.error({ title: "Error", description: "Failed to delete the selected devices." });
+            }
+        } catch (e) {
+            toaster.error({ title: "Error", description: `${e}` });
+        }
     }
 </script>
 

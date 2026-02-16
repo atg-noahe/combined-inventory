@@ -31,7 +31,7 @@
     onMount(async () => {
         try {
             const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"])
-            const resp = await fetch('https://api.atgfw.com/api/combined-inventory/organizations', {
+            const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/organizations`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

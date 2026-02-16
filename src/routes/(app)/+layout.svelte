@@ -1,7 +1,8 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.ico';
-	import { AppBar, Avatar, Menu, Portal } from '@skeletonlabs/skeleton-svelte';
+	import { AppBar, Avatar, Menu, Portal, Toast } from '@skeletonlabs/skeleton-svelte';
+	import { toaster } from '$lib/toast';
 	import { ConnectMSAL, msalInstance } from '$lib/auth/msal.svelte';
 	import { House, MenuIcon } from 'lucide-svelte';
 	import { authInfo } from '$lib/auth/msal.svelte';
@@ -67,4 +68,15 @@ Logging you in!
 	</AppBar.Toolbar>
 </AppBar>
 {@render children()}
+<Toast.Group {toaster}>
+	{#snippet children(toast)}
+		<Toast {toast}>
+			<Toast.Message>
+				<Toast.Title>{toast.title}</Toast.Title>
+				<Toast.Description>{toast.description}</Toast.Description>
+			</Toast.Message>
+			<Toast.CloseTrigger />
+		</Toast>
+	{/snippet}
+</Toast.Group>
 {/await}
