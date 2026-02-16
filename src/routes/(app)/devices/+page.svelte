@@ -11,10 +11,9 @@
     import { v4 } from 'uuid'
         const PAGE_SIZE = 25
 
-    let selected_device_ids: string[] = $state([]);
+    let selected_devices: DeviceEntry[] = $state([]);
     let show_devices: boolean = $state(false);
     let devices: DeviceEntry[] = $state([]);
-    let selected_devices: DeviceEntry[] = $derived(devices.filter((d) => selected_device_ids.indexOf(d.object_id) !== -1))
 
     const options = {
         threshold: 0.1,
@@ -76,25 +75,24 @@
     let filtered_devices = $derived((filter ? devIndex.search(filter).map(r => r.item): devices));
 
 
-	function CheckboxHandler(ev: Event & { currentTarget: EventTarget & HTMLInputElement}) {
-        const val = ev.currentTarget.value;
-        if (selected_device_ids.includes(val)) {
-            selected_device_ids = selected_device_ids.filter((dev) => dev !== val);
+	function CheckboxHandler(device: DeviceEntry) {
+        const idx = selected_devices.indexOf(device);
+        if (idx !== -1) {
+            selected_devices.splice(idx, 1);
         }
         else {
-            selected_device_ids.push(val);
+            selected_devices.push(device);
         }
     }
-    
+
     function deleteSelectedDevices() {
-        const devs = devices.filter((d) => selected_device_ids.indexOf(d.object_id) !== -1)
-        console.log(devs)
+        console.log(selected_devices)
     }
 </script>
 
 {#if devices.length != 0}
 <div class="m-5">
-    {#if selected_device_ids.length > 0}
+    {#if selected_devices.length > 0}
         <div class="flex flex-row justify-between">
             <button class="flex flex-row items-center p-2 " onclick={() => show_devices = !show_devices}>
                 {#if show_devices}
@@ -104,12 +102,12 @@
                 {/if}
                 &nbsp;
                 <div>
-                    {selected_device_ids.length} Device(s) Selected
+                    {selected_devices.length} Device(s) Selected
                 </div>
             </button>
             <div>
                 <button type="button" class="btn preset-outlined" onclick={() => {
-                    selected_device_ids = [];
+                    selected_devices = [];
                     show_devices = false;}}>
                     Discard List
                 </button>
@@ -179,8 +177,8 @@
                 {#each filtered_devices.slice(start, end) as device (device.object_id)}
                     <tr>
                         <td>
-                            <input class="checkbox" type="checkbox" checked={selected_device_ids.indexOf(device.object_id) !== -1}
-                            value={device.object_id} oninput={CheckboxHandler}/>
+                            <input class="checkbox" type="checkbox" checked={selected_devices.includes(device)}
+                            oninput={() => CheckboxHandler(device)}/>
                         </td>
                         <td>
                             {device.device_name}
