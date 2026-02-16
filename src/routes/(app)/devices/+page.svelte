@@ -17,6 +17,7 @@
     let show_devices: boolean = $state(false);
     let devices: DeviceEntry[] = $state([]);
     let deleting: boolean = $state(false);
+    let loading: boolean = $state(true);
 
     const options = {
         threshold: 0.1,
@@ -35,12 +36,17 @@
         {"name": "ATG ID", "value": "optional"}
     ])
 
-    // Org name filter
+    // Org filter (keyed by rewst_org_id)
     let orgFilterValue: string[] = $state([]);
     let orgFilterItems = $derived(
-        [...new Set(devices.map(d => d.org_name).filter((n): n is string => n != null))].sort()
-            .map(name => ({ label: name, value: name }))
+        [...new Map(devices.map(d => [d.rewst_org_id, d.org_name])).entries()]
+            .filter((e): e is [string, string] => e[1] != null)
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([id, name]) => ({ label: name, value: id }))
     );
+    function orgName(id: string): string {
+        return orgFilterItems.find(o => o.value === id)?.label ?? id;
+    }
 
     function get_last_seen(device: Device): Date {
         const ninja_date = device.ninja_last_seen ? new Date(device.ninja_last_seen) : new Date(0)
@@ -55,14 +61,8 @@
 
     
     onMount(async () => {
-        const urlParams = new URLSearchParams(window.location.search)
-        let data_url = new URL(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/devices`)
-        let org_id = urlParams.get('org_id')
-        if (org_id) {
-            data_url.searchParams.set("org_id", org_id)
-        }
         const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
-        const resp = await fetch(data_url, {
+        const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/devices`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -72,10 +72,13 @@
             return {...d, object_id: v4()}
         })
         devices.sort((a, b) => {
-            const aname = a.device_name ? a.device_name : "";
-            const bname = b.device_name ? b.device_name : "";
-            return aname.localeCompare(bname)
+            return a.device_name.localeCompare(b.device_name)
         })
+        const orgId = new URLSearchParams(window.location.search).get('org_id');
+        if (orgId) {
+            orgFilterValue = [orgId];
+        }
+        loading = false;
     });
     let filter = $state("");
     let page = $state(1);
@@ -95,7 +98,7 @@
             });
         }
         if (orgFilterValue.length > 0) {
-            result = result.filter(d => d.org_name != null && orgFilterValue.includes(d.org_name));
+            result = result.filter(d => orgFilterValue.includes(d.rewst_org_id));
         }
         return result;
     });
@@ -139,7 +142,11 @@
     }
 </script>
 
-{#if devices.length != 0}
+{#if loading}
+<div class="w-full flex flex-row justify-center mt-30">
+    <Spinner size="lg"></Spinner>
+</div>
+{:else if devices.length != 0}
 <div class="m-5">
     {#if selected_devices.length > 0}
         <div class="flex flex-row justify-between">
@@ -215,10 +222,10 @@
                 <X size={14}></X>
             </button>
         {/each}
-        {#each orgFilterValue as org (org)}
+        {#each orgFilterValue as orgId (orgId)}
             <button class="badge preset-filled-surface-200-800 gap-1 cursor-pointer"
-                onclick={() => { orgFilterValue = orgFilterValue.filter(v => v !== org); }}>
-                Org: {org}
+                onclick={() => { orgFilterValue = orgFilterValue.filter(v => v !== orgId); }}>
+                Org: {orgName(orgId)}
                 <X size={14}></X>
             </button>
         {/each}
@@ -340,7 +347,7 @@
     </Pagination>
 </div>
 {:else}
-<div class="w-full flex flex-row justify-center mt-30">
-    <Spinner size="lg"></Spinner>
+<div class="w-full flex flex-col items-center mt-30 gap-2">
+    <p class="text-lg">No devices found.</p>
 </div>
 {/if}

@@ -29,7 +29,6 @@
         const filtered = data.filter(item => item.label.toLowerCase().includes(event.inputValue.toLowerCase()));
         displayItems = filtered.length > 0 ? filtered : data;
     };
-    const onOpenChange = () => { displayItems = data; };
     const onValueChange: ComboboxRootProps['onValueChange'] = (event) => { value = event.value; };
 </script>
 
@@ -48,7 +47,7 @@
                     <Popover.ArrowTip></Popover.ArrowTip>
                 </Popover.Arrow>
                 <Combobox class="w-64" placeholder="Search..." {collection}
-                    {onOpenChange} {onInputValueChange}
+                    open={true} {onInputValueChange}
                     {value} {onValueChange}>
                     <Combobox.Control>
                         <Combobox.Input />
