@@ -126,9 +126,9 @@
                             data-[state=open]:opacity-100 data-[state=open]:translate-y-0 h-auto">
                                 <Dialog.Title class="text-lg font-bol">Are you sure you'd like to unmonitor these devices?</Dialog.Title>
                                 <Dialog.Description>
-                                    <ul>
+                                    <ul class="list-disc pl-5 max-h-48 overflow-y-auto space-y-1 my-2">
                                         {#each selected_devices as dev}
-                                            <li>{dev.device_name}</li>
+                                            <li class="text-sm">{dev.device_name}</li>
                                         {/each}
                                     </ul>
                                     This processs cannot be reversed
