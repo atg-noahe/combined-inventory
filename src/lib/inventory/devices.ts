@@ -1,4 +1,4 @@
-export interface Device {
+export type Device = {
     atg_id: string | null
     device_name: string | null,
     immybot_id: number | null,
@@ -8,4 +8,8 @@ export interface Device {
     operating_system: string | null,
     org_name: string | null,
     public_ip: string | null
+}
+
+export type DeviceEntry = Device & {
+    object_id: string
 }

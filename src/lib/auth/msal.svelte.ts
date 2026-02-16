@@ -31,7 +31,6 @@ export async function ConnectMSAL() {
     }
 
     if (accounts.length === 0) {
-        console.log("Zero");
         try {
             const res: AuthenticationResult = await msalInstance.ssoSilent({scopes});
             msalInstance.setActiveAccount(res.account);
@@ -42,12 +41,10 @@ export async function ConnectMSAL() {
         }
     }
     else if (accounts.length === 1) {
-        console.log("One");
         const account = accounts[0];
         msalInstance.setActiveAccount(account);
     }
     else {
-        console.log("Many");
         const res = await msalInstance.acquireTokenPopup({scopes});
         msalInstance.setActiveAccount(res.account);
     }

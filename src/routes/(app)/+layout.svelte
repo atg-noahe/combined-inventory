@@ -8,11 +8,9 @@
 
 	const loaded = msalInstance.handleRedirectPromise().then(async (tokenResponse) => {
 		if (tokenResponse !== null) {
-			console.log("Handling Redirect")
 			authInfo.account = tokenResponse.account;
 		}
 		else {
-			console.log("Logging In")
 			await ConnectMSAL();
 		}
 	})
