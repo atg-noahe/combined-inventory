@@ -232,6 +232,18 @@
             <thead>
                 <tr>
                     <th>
+                        <input class="checkbox" type="checkbox"
+                            checked={filtered_devices.slice(start, end).every(d => selected_devices.includes(d)) && filtered_devices.slice(start, end).length > 0}
+                            oninput={() => {
+                                const pageDevices = filtered_devices.slice(start, end);
+                                const allSelected = pageDevices.every(d => selected_devices.includes(d));
+                                if (allSelected) {
+                                    selected_devices = selected_devices.filter(d => !pageDevices.includes(d));
+                                } else {
+                                    const toAdd = pageDevices.filter(d => !selected_devices.includes(d));
+                                    selected_devices = [...selected_devices, ...toAdd];
+                                }
+                            }}/>
                     </th>
                     <th> Device Name </th>
                     <th>
