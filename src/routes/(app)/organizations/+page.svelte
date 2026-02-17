@@ -41,8 +41,10 @@
     const columns: ColumnDef<Organization>[] = [
         { key: 'name', label: 'Org Name' },
         { key: 'sources', label: 'Sources', sortable: false },
-        { key: 'ninja_devices', label: 'Ninja Devices', sortFn: (a, b) => (a.ninja_identified + a.ninja_unidentified) - (b.ninja_identified + b.ninja_unidentified) },
-        { key: 'immybot_devices', label: 'ImmyBot Devices', sortFn: (a, b) => (a.immybot_identified + a.immybot_unidentified) - (b.immybot_identified + b.immybot_unidentified) },
+        { key: 'ninja_identified', label: 'Ninja Identified', sortFn: (a, b) => a.ninja_identified - b.ninja_identified },
+        { key: 'ninja_unidentified', label: 'Ninja Unidentified', sortFn: (a, b) => a.ninja_unidentified - b.ninja_unidentified },
+        { key: 'immybot_identified', label: 'ImmyBot Identified', sortFn: (a, b) => a.immybot_identified - b.immybot_identified },
+        { key: 'immybot_unidentified', label: 'ImmyBot Unidentified', sortFn: (a, b) => a.immybot_unidentified - b.immybot_unidentified },
         { key: 'matched_devices', label: 'Identified Devices Total', sortFn: (a, b) => a.matched_devices - b.matched_devices },
     ];
 </script>
@@ -84,8 +86,10 @@
                     <span class="badge outline-1">NinjaRMM</span>
                 </a>
             </td>
-            <td>{org.ninja_identified} Identified | {org.ninja_unidentified} Unidentified</td>
-            <td>{org.immybot_identified} Identified | {org.immybot_unidentified} Unidentified</td>
+            <td>{org.ninja_identified}</td>
+            <td>{org.ninja_unidentified}</td>
+            <td>{org.immybot_identified}</td>
+            <td>{org.immybot_unidentified}</td>
             <td>{org.matched_devices}</td>
         {/snippet}
     </SortableTable>
