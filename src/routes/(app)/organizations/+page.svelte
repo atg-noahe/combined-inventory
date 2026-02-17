@@ -2,9 +2,7 @@
 	import { onMount } from "svelte";
 	import { GetToken } from "$lib/auth/msal.svelte";
 	import Spinner from "$lib/components/spinner.svelte";
-	import Fuse from "fuse.js";
-	import { Pagination } from "@skeletonlabs/skeleton-svelte";
-	import { ArrowLeftIcon, ArrowRightIcon } from "lucide-svelte";
+    import SortableTable, { type ColumnDef } from "$lib/components/SortableTable.svelte";
 
     type Organization = {
         name: string,
@@ -18,14 +16,6 @@
         matched_devices: number
     }
     let orgs: Organization[] = $state([])
-    const options = {
-        threshold: 0.1,
-        keys: [
-            "name",
-            "rewst_org_id"
-        ]
-    }
-    let orgIndex: Fuse<Organization> = $derived(new Fuse(orgs, options));
 
     let error: Error | null = $state(null)
     onMount(async () => {
@@ -48,12 +38,13 @@
         }
     })
 
-    let filter = $state("")
-    let page = $state(1)
-    const PAGE_SIZE = 50;
-    const start = $derived((page-1) * PAGE_SIZE)
-    const end = $derived(start + PAGE_SIZE)
-    let filtered_devices = $derived(filter ? orgIndex.search(filter).map(r => r.item) : orgs)
+    const columns: ColumnDef<Organization>[] = [
+        { key: 'name', label: 'Org Name' },
+        { key: 'sources', label: 'Sources', sortable: false },
+        { key: 'ninja_devices', label: 'Ninja Devices', sortFn: (a, b) => (a.ninja_identified + a.ninja_unidentified) - (b.ninja_identified + b.ninja_unidentified) },
+        { key: 'immybot_devices', label: 'ImmyBot Devices', sortFn: (a, b) => (a.immybot_identified + a.immybot_unidentified) - (b.immybot_identified + b.immybot_unidentified) },
+        { key: 'matched_devices', label: 'Identified Devices Total', sortFn: (a, b) => a.matched_devices - b.matched_devices },
+    ];
 </script>
 
 {#if orgs.length === 0}
@@ -68,66 +59,35 @@
     {/if}
 {:else}
 <div class="m-5">
-    <div class="w-full flex flex-row">
-        <input class="input" type="search" placeholder="Search terms here!" bind:value={filter}>
-    </div>
-    <div class="table-wrap mt-5">
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Org Name</th>
-                <th>Sources</th>
-                <th>Ninja Devices</th>
-                <th>ImmyBot Devices</th>
-                <th>Identified Devices Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            {#each filtered_devices.slice(start, end) as org (org.rewst_org_id)}
-            <tr>
-                <td>
-                    <a href={`/devices/?org_id=${org.rewst_org_id}`}>
-                        {org.name}
-                    </a>
-                </td>
-                <td>
-                    <a href={`https://atgfw.immy.bot/tenants/${org.immybot_org_id}`}
-                        target="_blank" title={`Immybot Organization ID: ${org.immybot_org_id}`}>
-                        <span class="badge outline-1">Immybot</span>
-                    </a>
-                    <a href={`https://app.ninjarmm.com/#/customerDashboard/${org.ninja_org_id}/overview`}
-                        target="_blank" title={`Ninja Organization ID: ${org.ninja_org_id}`}>
-                        <span class="badge outline-1">NinjaRMM</span>
-                    </a>
-                </td>
-                <td>{org.ninja_identified} Identified | {org.ninja_unidentified} Unidentified</td>
-                <td>{org.immybot_identified} Identified | {org.immybot_unidentified} Unidentified</td>
-                <td>{org.matched_devices}</td>
-            </tr>
-            {/each}
-        </tbody>
-    </table>
-    </div>
-    <Pagination count={filtered_devices.length} pageSize={PAGE_SIZE} {page} onPageChange={(event) => (page = event.page)}>
-        <Pagination.PrevTrigger>
-            <ArrowLeftIcon class="size-4"></ArrowLeftIcon>
-        </Pagination.PrevTrigger>
-        <Pagination.Context>
-            {#snippet children(pagination)}
-                {#each pagination().pages as page, index (page)}
-                    {#if page.type === 'page'}
-                        <Pagination.Item {...page}>
-                            {page.value}
-                        </Pagination.Item>
-                    {:else}
-                        <Pagination.Ellipsis {index}>&#8230;</Pagination.Ellipsis>
-                    {/if}
-                {/each}
-            {/snippet}
-        </Pagination.Context>
-        <Pagination.NextTrigger>
-            <ArrowRightIcon class="size-4"></ArrowRightIcon>
-        </Pagination.NextTrigger>
-    </Pagination>
+    <SortableTable
+        items={orgs}
+        {columns}
+        searchKeys={["name", "rewst_org_id"]}
+        pageSize={50}
+        searchPlaceholder="Search terms here!"
+        defaultSort={{ column: 'name', direction: 'asc' }}
+        rowKey={(org) => org.rewst_org_id}
+    >
+        {#snippet row(org)}
+            <td>
+                <a href={`/devices/?org_id=${org.rewst_org_id}`}>
+                    {org.name}
+                </a>
+            </td>
+            <td>
+                <a href={`https://atgfw.immy.bot/tenants/${org.immybot_org_id}`}
+                    target="_blank" title={`Immybot Organization ID: ${org.immybot_org_id}`}>
+                    <span class="badge outline-1">Immybot</span>
+                </a>
+                <a href={`https://app.ninjarmm.com/#/customerDashboard/${org.ninja_org_id}/overview`}
+                    target="_blank" title={`Ninja Organization ID: ${org.ninja_org_id}`}>
+                    <span class="badge outline-1">NinjaRMM</span>
+                </a>
+            </td>
+            <td>{org.ninja_identified} Identified | {org.ninja_unidentified} Unidentified</td>
+            <td>{org.immybot_identified} Identified | {org.immybot_unidentified} Unidentified</td>
+            <td>{org.matched_devices}</td>
+        {/snippet}
+    </SortableTable>
 </div>
 {/if}

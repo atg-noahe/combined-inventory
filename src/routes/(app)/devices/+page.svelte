@@ -1,9 +1,8 @@
 <script lang="ts">
 	import type { Device, DeviceEntry } from "$lib/inventory/devices";
 	import { onMount } from "svelte";
-    import Fuse from "fuse.js";
-	import { Dialog, Menu, Pagination, Popover, Portal } from "@skeletonlabs/skeleton-svelte";
-	import { ArrowLeftIcon, ArrowRightIcon, Funnel, X } from "lucide-svelte";
+	import { Dialog, Popover, Portal } from "@skeletonlabs/skeleton-svelte";
+	import { X } from "lucide-svelte";
 	import { GetToken } from "$lib/auth/msal.svelte";
 	import Spinner from "$lib/components/spinner.svelte";
     import { DateTime } from "luxon";
@@ -11,24 +10,13 @@
 	import SearchFilter from "$lib/components/SearchFilter.svelte";
 	import { toaster } from "$lib/toast";
     import { v4 } from 'uuid'
-        const PAGE_SIZE = 25
+    import SortableTable, { type ColumnDef } from "$lib/components/SortableTable.svelte";
 
     let selected_devices: DeviceEntry[] = $state([]);
     let show_devices: boolean = $state(false);
     let devices: DeviceEntry[] = $state([]);
     let deleting: boolean = $state(false);
     let loading: boolean = $state(true);
-
-    const options = {
-        threshold: 0.1,
-        keys: [
-            "device_name",
-            "org_name",
-            "operating_system",
-            "public_ip"
-        ]
-    };
-    let devIndex: Fuse<DeviceEntry> = $derived(new Fuse(devices, options));
 
     let filters: FilterOption[] = $state([
         {"name": "ImmyBot", "value": "optional"},
@@ -59,7 +47,7 @@
         return (-date.diffNow("days").days) < 30
     }
 
-    
+
     onMount(async () => {
         const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
         const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/devices`, {
@@ -70,9 +58,6 @@
         const apiDevs: Device[] = await resp.json();
         devices = apiDevs.map((d) => {
             return {...d, object_id: v4()}
-        })
-        devices.sort((a, b) => {
-            return a.device_name.localeCompare(b.device_name)
         })
         const orgId = new URLSearchParams(window.location.search).get('org_id');
         if (orgId) {
@@ -149,32 +134,11 @@
         }
     }
 
-    let filter = $state("");
-    let page = $state(1);
-
-    const start = $derived((page-1) * PAGE_SIZE);
-    const end = $derived(start + PAGE_SIZE);
-    let filtered_devices = $derived.by(() => {
-        let result = filter ? devIndex.search(filter).map(r => r.item) : devices;
-        for (const f of filters) {
-            if (f.value === "optional") continue;
-            const required = f.value === "required";
-            result = result.filter(d => {
-                if (f.name === "ImmyBot") return required ? d.immybot_id != null : d.immybot_id == null;
-                if (f.name === "Ninja")   return required ? d.ninja_id != null : d.ninja_id == null;
-                if (f.name === "ATG ID")  return required ? d.atg_id != null : d.atg_id == null;
-                return true;
-            });
-        }
-        if (orgFilterValue.length > 0) {
-            result = result.filter(d => orgFilterValue.includes(d.rewst_org_id));
-        }
-        return result;
-    });
+    let filteredItems: DeviceEntry[] = $state([]);
 
     let linkablePairs = $derived(
         [...linkableDevices.entries()]
-            .filter(([targetId]) => filtered_devices.some(d => d.object_id === targetId))
+            .filter(([targetId]) => filteredItems.some(d => d.object_id === targetId))
             .map(([targetId, source]) => ({
                 target: devices.find(d => d.object_id === targetId)!,
                 source
@@ -219,6 +183,33 @@
             deleting = false;
         }
     }
+
+    function deviceFilterFn(items: DeviceEntry[]): DeviceEntry[] {
+        let result = items;
+        for (const f of filters) {
+            if (f.value === "optional") continue;
+            const required = f.value === "required";
+            result = result.filter(d => {
+                if (f.name === "ImmyBot") return required ? d.immybot_id != null : d.immybot_id == null;
+                if (f.name === "Ninja")   return required ? d.ninja_id != null : d.ninja_id == null;
+                if (f.name === "ATG ID")  return required ? d.atg_id != null : d.atg_id == null;
+                return true;
+            });
+        }
+        if (orgFilterValue.length > 0) {
+            result = result.filter(d => orgFilterValue.includes(d.rewst_org_id));
+        }
+        return result;
+    }
+
+    const deviceColumns: ColumnDef<DeviceEntry>[] = [
+        { key: 'device_name', label: 'Device Name' },
+        { key: 'org_name', label: 'Organization Name' },
+        { key: 'operating_system', label: 'Operating System' },
+        { key: 'public_ip', label: 'Public IP' },
+        { key: 'status', label: 'Status', sortable: false },
+        { key: 'last_seen', label: 'Last Seen', sortFn: (a, b) => get_last_seen(a).getTime() - get_last_seen(b).getTime() },
+    ];
 </script>
 
 {#if loading}
@@ -310,150 +301,120 @@
         {/each}
     </div>
     {/if}
-    <div class="flex flex-row gap-2">
-        <input class="input" type="search" placeholder="Search by Device Name, Org Name, Etc" bind:value={filter}>
-        {#if linkablePairs.length > 0}
-        <Popover>
-            <Popover.Trigger class="btn preset-filled-warning-500 text-nowrap">
-                Suggested Links ({linkablePairs.length})
-            </Popover.Trigger>
-            <Portal>
-                <Popover.Positioner>
-                    <Popover.Content class="card bg-surface-100-900 p-2 rounded max-h-64 overflow-y-auto">
-                        <Popover.Arrow class="[--arrow-size:--spacing(2)] [--arrow-background:var(--color-surface-100-900)]">
-                            <Popover.ArrowTip></Popover.ArrowTip>
-                        </Popover.Arrow>
-                        <div class="flex flex-col gap-1">
-                            {#each linkablePairs as pair (pair.target.object_id)}
-                                <button class="flex flex-row justify-between items-center gap-4 hover:bg-surface-200-800 px-3 py-2 rounded text-start"
-                                    onclick={() => { linkTarget = pair.target; }}>
-                                    <div>
-                                        <div class="text-sm font-medium">{pair.target.device_name}</div>
-                                        <div class="text-xs text-gray-400">{pair.target.org_name}</div>
-                                    </div>
-                                    <div class="text-xs text-gray-400 text-right text-nowrap">
-                                        {pair.target.immybot_id != null ? 'ImmyBot' : 'Ninja'} &larr; {pair.source.immybot_id != null ? 'ImmyBot' : 'Ninja'}
-                                    </div>
-                                </button>
-                            {/each}
-                        </div>
-                    </Popover.Content>
-                </Popover.Positioner>
-            </Portal>
-        </Popover>
-        {/if}
-    </div>
-    <div class="table-wrap my-5">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>
-                        <input class="checkbox" type="checkbox"
-                            checked={filtered_devices.slice(start, end).every(d => selected_devices.includes(d)) && filtered_devices.slice(start, end).length > 0}
-                            oninput={() => {
-                                const pageDevices = filtered_devices.slice(start, end);
-                                const allSelected = pageDevices.every(d => selected_devices.includes(d));
-                                if (allSelected) {
-                                    selected_devices = selected_devices.filter(d => !pageDevices.includes(d));
-                                } else {
-                                    const toAdd = pageDevices.filter(d => !selected_devices.includes(d));
-                                    selected_devices = [...selected_devices, ...toAdd];
-                                }
-                            }}/>
-                    </th>
-                    <th> Device Name </th>
-                    <th>
-                        <div class="flex flex-row gap-2">
-                            <SearchFilter items={orgFilterItems} bind:value={orgFilterValue}></SearchFilter>
-                            Organization Name
-                        </div>
-                    </th>
-                    <th> Operating System </th>
-                    <th> Public IP </th>
-                    <th>
-                        <div class="flex flex-row gap-2">
-                            <FilterButton bind:options={filters}></FilterButton>
-                            Status
-                        </div>
-                    </th>
-                    <th> Last Seen </th>
-                </tr>
-            </thead>
-            <tbody>
-                {#each filtered_devices.slice(start, end) as device (device.object_id)}
-                    <tr>
-                        <td>
-                            <input class="checkbox" type="checkbox" checked={selected_devices.includes(device)}
-                            oninput={() => CheckboxHandler(device)}/>
-                        </td>
-                        <td>
-                            {device.device_name}
-                        </td>
-                        <td>
-                            {device.org_name}
-                        </td>
-                        <td>{device.operating_system}</td>
-                        <td>{device.public_ip}</td>
-                        <td>
-                            {#if device.atg_id}
-                            <span class="badge bg-green-800" title={`ATG ID: ${device.atg_id}`}>ATG ID</span>
-                            {:else}
-                            <span class="badge outline text-gray-200" title={`Unidentified`}>ATG ID</span>
-                            {/if}
-                            {#if device.immybot_id}
-                            <a href="http://atgfw.immy.bot/computers/{device.immybot_id}"
-                                target="_blank">
-                                <span 
-                                    class={`badge ${seen_recently(device.immybot_last_seen) ? 'bg-green-800': 'bg-yellow-800'}`}
-                                    title={`ImmyBot ID: ${device.immybot_id}`}>
-                                    ImmyBot
-                                </span>
-                            </a>
-                            {:else}
-                                <span class="badge bg-red-800">ImmyBot</span>
-                            {/if}
-                            {#if device.ninja_id}
-                            <a href="https://app.ninjarmm.com/#/deviceDashboard/{device.ninja_id}/overview"
-                                target="_blank">
-                                <span
-                                    class={`badge ${seen_recently(device.ninja_last_seen) ? 'bg-green-800': 'bg-yellow-800'}`}
-                                    title={`Ninja ID: ${device.ninja_id}`}>
-                                    NinjaRMM
-                                </span>
-                            </a>
-                            {:else}
-                                <span class="badge bg-red-800">NinjaRMM</span>
-                            {/if}
-                        </td>
-                        <td>
-                            {get_last_seen(device).toLocaleString()}
-                        </td>
-                    </tr>
-                {/each}
-            </tbody>
-        </table>
-    </div>
-    <Pagination count={filtered_devices.length} pageSize={PAGE_SIZE} {page} onPageChange={(event) => (page = event.page)}>
-        <Pagination.PrevTrigger>
-            <ArrowLeftIcon class="size-4" />
-        </Pagination.PrevTrigger>
-        <Pagination.Context>
-            {#snippet children(pagination)}
-                {#each pagination().pages as page, index (page)}
-                    {#if page.type === 'page'}
-                        <Pagination.Item {...page}>
-                            {page.value}
-                        </Pagination.Item>
-                    {:else}
-                        <Pagination.Ellipsis {index}>&#8230;</Pagination.Ellipsis>
-                    {/if}
-                {/each}
-            {/snippet}
-        </Pagination.Context>
-        <Pagination.NextTrigger>
-            <ArrowRightIcon class="size-4"></ArrowRightIcon>
-        </Pagination.NextTrigger>
-    </Pagination>
+    <SortableTable
+        items={devices}
+        columns={deviceColumns}
+        searchKeys={["device_name", "org_name", "operating_system", "public_ip"]}
+        pageSize={25}
+        searchPlaceholder="Search by Device Name, Org Name, Etc"
+        defaultSort={{ column: 'device_name', direction: 'asc' }}
+        rowKey={(d) => d.object_id}
+        filterFn={deviceFilterFn}
+        bind:filteredItems
+    >
+        {#snippet toolbar()}
+            {#if linkablePairs.length > 0}
+            <Popover>
+                <Popover.Trigger class="btn preset-filled-warning-500 text-nowrap">
+                    Suggested Links ({linkablePairs.length})
+                </Popover.Trigger>
+                <Portal>
+                    <Popover.Positioner>
+                        <Popover.Content class="card bg-surface-100-900 p-2 rounded max-h-64 overflow-y-auto">
+                            <Popover.Arrow class="[--arrow-size:--spacing(2)] [--arrow-background:var(--color-surface-100-900)]">
+                                <Popover.ArrowTip></Popover.ArrowTip>
+                            </Popover.Arrow>
+                            <div class="flex flex-col gap-1">
+                                {#each linkablePairs as pair (pair.target.object_id)}
+                                    <button class="flex flex-row justify-between items-center gap-4 hover:bg-surface-200-800 px-3 py-2 rounded text-start"
+                                        onclick={() => { linkTarget = pair.target; }}>
+                                        <div>
+                                            <div class="text-sm font-medium">{pair.target.device_name}</div>
+                                            <div class="text-xs text-gray-400">{pair.target.org_name}</div>
+                                        </div>
+                                        <div class="text-xs text-gray-400 text-right text-nowrap">
+                                            {pair.target.immybot_id != null ? 'ImmyBot' : 'Ninja'} &larr; {pair.source.immybot_id != null ? 'ImmyBot' : 'Ninja'}
+                                        </div>
+                                    </button>
+                                {/each}
+                            </div>
+                        </Popover.Content>
+                    </Popover.Positioner>
+                </Portal>
+            </Popover>
+            {/if}
+        {/snippet}
+        {#snippet headerPrefix(pageDevices)}
+            <th>
+                <input class="checkbox" type="checkbox"
+                    checked={pageDevices.every(d => selected_devices.includes(d)) && pageDevices.length > 0}
+                    oninput={() => {
+                        const allSelected = pageDevices.every(d => selected_devices.includes(d));
+                        if (allSelected) {
+                            selected_devices = selected_devices.filter(d => !pageDevices.includes(d));
+                        } else {
+                            const toAdd = pageDevices.filter(d => !selected_devices.includes(d));
+                            selected_devices = [...selected_devices, ...toAdd];
+                        }
+                    }}/>
+            </th>
+        {/snippet}
+        {#snippet headerContent(col)}
+            {#if col.key === 'org_name'}
+                <SearchFilter items={orgFilterItems} bind:value={orgFilterValue}></SearchFilter>
+            {:else if col.key === 'status'}
+                <FilterButton bind:options={filters}></FilterButton>
+            {/if}
+        {/snippet}
+        {#snippet row(device)}
+            <td>
+                <input class="checkbox" type="checkbox" checked={selected_devices.includes(device)}
+                oninput={() => CheckboxHandler(device)}/>
+            </td>
+            <td>
+                {device.device_name}
+            </td>
+            <td>
+                {device.org_name}
+            </td>
+            <td>{device.operating_system}</td>
+            <td>{device.public_ip}</td>
+            <td>
+                {#if device.atg_id}
+                <span class="badge bg-green-800" title={`ATG ID: ${device.atg_id}`}>ATG ID</span>
+                {:else}
+                <span class="badge outline text-gray-200" title={`Unidentified`}>ATG ID</span>
+                {/if}
+                {#if device.immybot_id}
+                <a href="http://atgfw.immy.bot/computers/{device.immybot_id}"
+                    target="_blank">
+                    <span
+                        class={`badge ${seen_recently(device.immybot_last_seen) ? 'bg-green-800': 'bg-yellow-800'}`}
+                        title={`ImmyBot ID: ${device.immybot_id}`}>
+                        ImmyBot
+                    </span>
+                </a>
+                {:else}
+                    <span class="badge bg-red-800">ImmyBot</span>
+                {/if}
+                {#if device.ninja_id}
+                <a href="https://app.ninjarmm.com/#/deviceDashboard/{device.ninja_id}/overview"
+                    target="_blank">
+                    <span
+                        class={`badge ${seen_recently(device.ninja_last_seen) ? 'bg-green-800': 'bg-yellow-800'}`}
+                        title={`Ninja ID: ${device.ninja_id}`}>
+                        NinjaRMM
+                    </span>
+                </a>
+                {:else}
+                    <span class="badge bg-red-800">NinjaRMM</span>
+                {/if}
+            </td>
+            <td>
+                {get_last_seen(device).toLocaleString()}
+            </td>
+        {/snippet}
+    </SortableTable>
 
     <Dialog open={linkTarget != null} onOpenChange={(details) => { if (!details.open) linkTarget = null; }}>
         <Portal>
