@@ -2,7 +2,7 @@
 	import type { Device, DeviceEntry } from "$lib/inventory/devices";
 	import { onMount } from "svelte";
     import Fuse from "fuse.js";
-	import { Dialog, Menu, Pagination, Portal } from "@skeletonlabs/skeleton-svelte";
+	import { Dialog, Menu, Pagination, Popover, Portal } from "@skeletonlabs/skeleton-svelte";
 	import { ArrowLeftIcon, ArrowRightIcon, Funnel, X } from "lucide-svelte";
 	import { GetToken } from "$lib/auth/msal.svelte";
 	import Spinner from "$lib/components/spinner.svelte";
@@ -80,6 +80,75 @@
         }
         loading = false;
     });
+
+    // --- Device Linking ---
+    let linkTarget: DeviceEntry | null = $state(null);
+    let linking: boolean = $state(false);
+
+    let linkableDevices = $derived.by(() => {
+        const groups = new Map<string, DeviceEntry[]>();
+        for (const d of devices) {
+            const key = `${d.device_name}\0${d.rewst_org_id}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(d);
+        }
+
+        const linkMap = new Map<string, DeviceEntry>();
+        for (const [, group] of groups) {
+            if (group.length !== 2) continue;
+            const [a, b] = group;
+            const aHasAtg = a.atg_id != null;
+            const bHasAtg = b.atg_id != null;
+            const aHasOneService = (a.immybot_id != null) !== (a.ninja_id != null);
+            const bHasOneService = (b.immybot_id != null) !== (b.ninja_id != null);
+            if (!aHasOneService || !bHasOneService) continue;
+            if (aHasAtg && !bHasAtg) {
+                linkMap.set(b.object_id, a);
+            } else if (!aHasAtg && bHasAtg) {
+                linkMap.set(a.object_id, b);
+            }
+        }
+        return linkMap;
+    });
+
+    async function linkDevice() {
+        if (!linkTarget) return;
+        const source = linkableDevices.get(linkTarget.object_id);
+        if (!source) return;
+        const atgId = source.atg_id;
+        const deviceName = linkTarget.device_name;
+        const merged = {
+            atg_id: atgId,
+            immybot_id: source.immybot_id ?? linkTarget.immybot_id,
+            ninja_id: source.ninja_id ?? linkTarget.ninja_id
+        };
+        linking = true;
+        try {
+            const token = await GetToken(["api://deec1bcd-3785-4edb-b656-f51f1a31008b/access_as_user"]);
+            const resp = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/combined-inventory/devices/merge`, {
+                method: "PATCH",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(merged)
+            });
+            if (!resp.ok) {
+                console.error("Link failed:", resp.status, resp.statusText);
+                toaster.error({ title: "Error", description: "Failed to link device." });
+                return;
+            }
+            linkTarget.atg_id = atgId;
+            toaster.success({ title: "Linked", description: `ATG ID ${atgId} applied to ${deviceName}.` });
+            linkTarget = null;
+        } catch (e) {
+            console.error(e);
+            toaster.error({ title: "Error", description: `${e}` });
+        } finally {
+            linking = false;
+        }
+    }
+
     let filter = $state("");
     let page = $state(1);
 
@@ -103,6 +172,14 @@
         return result;
     });
 
+    let linkablePairs = $derived(
+        [...linkableDevices.entries()]
+            .filter(([targetId]) => filtered_devices.some(d => d.object_id === targetId))
+            .map(([targetId, source]) => ({
+                target: devices.find(d => d.object_id === targetId)!,
+                source
+            }))
+    );
 
 	function CheckboxHandler(device: DeviceEntry) {
         const idx = selected_devices.indexOf(device);
@@ -132,9 +209,11 @@
                 selected_devices = [];
                 show_devices = false;
             } else {
+                console.error("Failed to delete devices:", resp.status, resp.statusText);
                 toaster.error({ title: "Error", description: "Failed to delete the selected devices." });
             }
         } catch (e) {
+            console.error(e);
             toaster.error({ title: "Error", description: `${e}` });
         } finally {
             deleting = false;
@@ -231,8 +310,38 @@
         {/each}
     </div>
     {/if}
-    <div>
+    <div class="flex flex-row gap-2">
         <input class="input" type="search" placeholder="Search by Device Name, Org Name, Etc" bind:value={filter}>
+        {#if linkablePairs.length > 0}
+        <Popover>
+            <Popover.Trigger class="btn preset-filled-warning-500 text-nowrap">
+                Suggested Links ({linkablePairs.length})
+            </Popover.Trigger>
+            <Portal>
+                <Popover.Positioner>
+                    <Popover.Content class="card bg-surface-100-900 p-2 rounded max-h-64 overflow-y-auto">
+                        <Popover.Arrow class="[--arrow-size:--spacing(2)] [--arrow-background:var(--color-surface-100-900)]">
+                            <Popover.ArrowTip></Popover.ArrowTip>
+                        </Popover.Arrow>
+                        <div class="flex flex-col gap-1">
+                            {#each linkablePairs as pair (pair.target.object_id)}
+                                <button class="flex flex-row justify-between items-center gap-4 hover:bg-surface-200-800 px-3 py-2 rounded text-start"
+                                    onclick={() => { linkTarget = pair.target; }}>
+                                    <div>
+                                        <div class="text-sm font-medium">{pair.target.device_name}</div>
+                                        <div class="text-xs text-gray-400">{pair.target.org_name}</div>
+                                    </div>
+                                    <div class="text-xs text-gray-400 text-right text-nowrap">
+                                        {pair.target.immybot_id != null ? 'ImmyBot' : 'Ninja'} &larr; {pair.source.immybot_id != null ? 'ImmyBot' : 'Ninja'}
+                                    </div>
+                                </button>
+                            {/each}
+                        </div>
+                    </Popover.Content>
+                </Popover.Positioner>
+            </Portal>
+        </Popover>
+        {/if}
     </div>
     <div class="table-wrap my-5">
         <table class="table">
@@ -345,7 +454,37 @@
             <ArrowRightIcon class="size-4"></ArrowRightIcon>
         </Pagination.NextTrigger>
     </Pagination>
+
+    <Dialog open={linkTarget != null} onOpenChange={(details) => { if (!details.open) linkTarget = null; }}>
+        <Portal>
+            <Dialog.Backdrop class="fixed inset-0 z-50 bg-surface-50-950/50"/>
+            <Dialog.Positioner class="fixed flex justify-center inset-0 z-50 items-center">
+                <Dialog.Content class="card bg-surface-100-900 w-full max-w-md p-4 space-y-4 shadow-xl
+                    transition transition-discrete opacity-0 translate-y-25
+                    starting:data-[state=open]:opacity-0 starting:data-[state=open]:translate-y-25
+                    data-[state=open]:opacity-100 data-[state=open]:translate-y-0 h-auto">
+                    <Dialog.Title class="text-lg font-bold">Link ATG ID</Dialog.Title>
+                    <Dialog.Description class="text-sm text-gray-400">
+                        {#if linkTarget}
+                            Apply ATG ID <strong class="break-all">{linkableDevices.get(linkTarget.object_id)?.atg_id}</strong> to <strong>{linkTarget.device_name}</strong>?
+                        {/if}
+                    </Dialog.Description>
+                    <footer class="flex justify-end gap-2">
+                        <button type="button" class="btn preset-filled" onclick={linkDevice} disabled={linking}>
+                            {#if linking}
+                                <Spinner size="sm" /> Linking...
+                            {:else}
+                                Confirm
+                            {/if}
+                        </button>
+                        <Dialog.CloseTrigger class="btn preset-tonal">Cancel</Dialog.CloseTrigger>
+                    </footer>
+                </Dialog.Content>
+            </Dialog.Positioner>
+        </Portal>
+    </Dialog>
 </div>
+
 {:else}
 <div class="w-full flex flex-col items-center mt-30 gap-2">
     <p class="text-lg">No devices found.</p>
