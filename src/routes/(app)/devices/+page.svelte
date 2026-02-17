@@ -459,16 +459,36 @@
         <Portal>
             <Dialog.Backdrop class="fixed inset-0 z-50 bg-surface-50-950/50"/>
             <Dialog.Positioner class="fixed flex justify-center inset-0 z-50 items-center">
-                <Dialog.Content class="card bg-surface-100-900 w-full max-w-md p-4 space-y-4 shadow-xl
+                <Dialog.Content class="card bg-surface-100-900 w-full max-w-xl p-4 space-y-4 shadow-xl
                     transition transition-discrete opacity-0 translate-y-25
                     starting:data-[state=open]:opacity-0 starting:data-[state=open]:translate-y-25
                     data-[state=open]:opacity-100 data-[state=open]:translate-y-0 h-auto">
                     <Dialog.Title class="text-lg font-bold">Link ATG ID</Dialog.Title>
-                    <Dialog.Description class="text-sm text-gray-400">
-                        {#if linkTarget}
-                            Apply ATG ID <strong class="break-all">{linkableDevices.get(linkTarget.object_id)?.atg_id}</strong> to <strong>{linkTarget.device_name}</strong>?
-                        {/if}
+                    {#if linkTarget}
+                    {@const source = linkableDevices.get(linkTarget.object_id)}
+                    <Dialog.Description>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="p-3 rounded-lg border border-green-800 space-y-1 overflow-hidden">
+                                <div class="text-xs font-semibold text-green-400 uppercase">Source</div>
+                                <div class="font-medium truncate">{source?.device_name}</div>
+                                <div class="text-sm"><span class="badge bg-green-800 text-xs truncate max-w-full">ATG ID: {source?.atg_id}</span></div>
+                                <div class="text-sm">
+                                    <span class="badge text-xs {source?.immybot_id != null ? 'bg-green-800' : 'bg-red-800'}">ImmyBot</span>
+                                    <span class="badge text-xs {source?.ninja_id != null ? 'bg-green-800' : 'bg-red-800'}">NinjaRMM</span>
+                                </div>
+                            </div>
+                            <div class="p-3 rounded-lg border border-blue-800 space-y-1 overflow-hidden">
+                                <div class="text-xs font-semibold text-blue-400 uppercase">Target</div>
+                                <div class="font-medium truncate">{linkTarget.device_name}</div>
+                                <div class="text-sm"><span class="badge outline text-gray-400 text-xs">ATG ID: none</span></div>
+                                <div class="text-sm">
+                                    <span class="badge text-xs {linkTarget.immybot_id != null ? 'bg-green-800' : 'bg-red-800'}">ImmyBot</span>
+                                    <span class="badge text-xs {linkTarget.ninja_id != null ? 'bg-green-800' : 'bg-red-800'}">NinjaRMM</span>
+                                </div>
+                            </div>
+                        </div>
                     </Dialog.Description>
+                    {/if}
                     <footer class="flex justify-end gap-2">
                         <button type="button" class="btn preset-filled" onclick={linkDevice} disabled={linking}>
                             {#if linking}
