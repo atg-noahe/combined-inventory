@@ -50,7 +50,7 @@
     // svelte-ignore state_referenced_locally
     let sortDirection: 'asc' | 'desc' = $state(defaultSort?.direction ?? 'asc');
 
-    const fuseIndex = $derived(new Fuse(items, { threshold: 0.1, keys: searchKeys }));
+    const fuseIndex = $derived(new Fuse(items, { threshold: 0.1, keys: searchKeys, ignoreLocation: true}));
 
     function toggleSort(key: string) {
         if (sortColumn === key) {
