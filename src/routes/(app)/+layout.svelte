@@ -4,7 +4,8 @@
 	import { AppBar, Avatar, Menu, Portal, Toast } from '@skeletonlabs/skeleton-svelte';
 	import { toaster } from '$lib/toast';
 	import { ConnectMSAL, msalInstance } from '$lib/auth/msal.svelte';
-	import { House, MenuIcon } from 'lucide-svelte';
+	import { House } from 'lucide-svelte';
+	import { resolve } from '$app/paths';
 	import { authInfo } from '$lib/auth/msal.svelte';
 
 	const loaded = msalInstance.handleRedirectPromise().then(async (tokenResponse) => {
@@ -29,19 +30,19 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 {#await loaded}
 Logging you in!
-{:then res} 
+{:then}
 <AppBar>
 	<AppBar.Toolbar class="grid-cols-[auto_1fr_auto] mx-auto container">
 		<AppBar.Lead>
-			<a href="/">
+			<a href={resolve("/")}>
 				<House></House>
 			</a>
 		</AppBar.Lead>
 		<AppBar.Headline>
-			<a href="/devices" class="btn hover:bg-secondary-50-950 h-full">
+			<a href={resolve("/devices")} class="btn hover:bg-secondary-50-950 h-full">
 				Devices
 			</a>
-			<a href="/organizations" class="btn hover:bg-secondary-50-950 h-full">
+			<a href={resolve("/organizations")} class="btn hover:bg-secondary-50-950 h-full">
 				Organizations
 			</a>
 		</AppBar.Headline>

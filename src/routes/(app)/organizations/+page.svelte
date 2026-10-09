@@ -3,12 +3,15 @@
 	import { GetToken } from "$lib/auth/msal.svelte";
 	import Spinner from "$lib/components/spinner.svelte";
     import SortableTable, { type ColumnDef } from "$lib/components/SortableTable.svelte";
+    import { cwCompanyUrl } from "$lib/inventory/devices";
+    import { resolve } from "$app/paths";
 
     type Organization = {
         name: string,
         rewst_org_id: string,
         immybot_org_id: number,
         ninja_org_id: number,
+        cw_id?: number | null,
         immybot_identified: number,
         immybot_unidentified: number,
         ninja_identified: number,
@@ -72,7 +75,7 @@
     >
         {#snippet row(org)}
             <td>
-                <a href={`/devices/?org_id=${org.rewst_org_id}`}>
+                <a href="{resolve('/devices')}?org_id={org.rewst_org_id}">
                     {org.name}
                 </a>
             </td>
@@ -85,6 +88,12 @@
                     target="_blank" title={`Ninja Organization ID: ${org.ninja_org_id}`}>
                     <span class="badge outline-1">NinjaRMM</span>
                 </a>
+                {#if org.cw_id}
+                <a href={cwCompanyUrl(org.cw_id)}
+                    target="_blank" rel="external" title={`ConnectWise Company ID: ${org.cw_id}`}>
+                    <span class="badge outline-1">ConnectWise</span>
+                </a>
+                {/if}
             </td>
             <td>{org.ninja_identified}</td>
             <td>{org.ninja_unidentified}</td>

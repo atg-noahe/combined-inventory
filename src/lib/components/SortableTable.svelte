@@ -7,7 +7,7 @@
     };
 </script>
 
-<script lang="ts" generics="T extends Record<string, any>">
+<script lang="ts" generics="T extends Record<string, unknown>">
     import Fuse from "fuse.js";
     import { Pagination } from "@skeletonlabs/skeleton-svelte";
     import { ArrowLeftIcon, ArrowRightIcon, ChevronUp, ChevronDown } from "lucide-svelte";

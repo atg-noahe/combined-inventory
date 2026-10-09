@@ -3,6 +3,7 @@
 	import { authInfo, GetToken } from "$lib/auth/msal.svelte"
 	import { onMount } from "svelte"
 	import Spinner from "$lib/components/spinner.svelte"
+	import { SvelteMap } from "svelte/reactivity"
 
 	let loading = $state(true);
 	let devices: Device[] = $state([]);
@@ -27,6 +28,10 @@
 	let ninjaWithAtg = $derived(ninjaDevices.filter(d => d.atg_id != null));
 	let ninjaPct = $derived(ninjaDevices.length > 0 ? Math.round(ninjaWithAtg.length / ninjaDevices.length * 1000) / 10 : 0);
 
+	let cwDevices = $derived(devices.filter(d => d.cw_config_id != null));
+	let cwWithAtg = $derived(cwDevices.filter(d => d.atg_id != null));
+	let cwPct = $derived(cwDevices.length > 0 ? Math.round(cwWithAtg.length / cwDevices.length * 1000) / 10 : 0);
+
 	function gaugeColor(pct: number): string {
 		if (pct >= 90) return '#22c55e';
 		if (pct >= 80) return '#eab308';
@@ -35,10 +40,10 @@
 
 	// --- Per-org table ---
 	let orgStats = $derived.by(() => {
-		const groups = new Map<string, { name: string, immy: number, ninja: number, matched: number, immyNoAtg: number, ninjaNoAtg: number }>();
+		const groups = new SvelteMap<string, { id: string, name: string, immy: number, ninja: number, cw: number, matched: number, immyNoAtg: number, ninjaNoAtg: number, cwNoAtg: number }>();
 		for (const d of devices) {
 			const key = d.rewst_org_id;
-			if (!groups.has(key)) groups.set(key, { name: d.org_name ?? key, immy: 0, ninja: 0, matched: 0, immyNoAtg: 0, ninjaNoAtg: 0 });
+			if (!groups.has(key)) groups.set(key, { id: key, name: d.org_name ?? key, immy: 0, ninja: 0, cw: 0, matched: 0, immyNoAtg: 0, ninjaNoAtg: 0, cwNoAtg: 0 });
 			const g = groups.get(key)!;
 			if (d.immybot_id != null) {
 				g.immy++;
@@ -47,6 +52,10 @@
 			if (d.ninja_id != null) {
 				g.ninja++;
 				if (d.atg_id == null) g.ninjaNoAtg++;
+			}
+			if (d.cw_config_id != null) {
+				g.cw++;
+				if (d.atg_id == null) g.cwNoAtg++;
 			}
 			if (d.immybot_id != null && d.ninja_id != null) g.matched++;
 		}
@@ -71,11 +80,12 @@
 	<!-- ATG ID Adoption Gauges -->
 	<div class="card p-6">
 		<h2 class="text-xl font-semibold mb-6">ATG ID Adoption</h2>
-		<div class="grid grid-cols-2 gap-12 max-w-3xl mx-auto">
+		<div class="grid grid-cols-3 gap-12 max-w-5xl mx-auto">
 			{#each [
 				{ label: "ImmyBot Devices with ATG ID", pct: immyPct, count: immyWithAtg.length, total: immyDevices.length },
-				{ label: "Ninja Devices with ATG ID", pct: ninjaPct, count: ninjaWithAtg.length, total: ninjaDevices.length }
-			] as gauge}
+				{ label: "Ninja Devices with ATG ID", pct: ninjaPct, count: ninjaWithAtg.length, total: ninjaDevices.length },
+				{ label: "ConnectWise Configs with ATG ID", pct: cwPct, count: cwWithAtg.length, total: cwDevices.length }
+			] as gauge (gauge.label)}
 			<div class="flex flex-col items-center gap-3">
 				<svg viewBox="0 0 220 140" class="w-64">
 					<path d="M 20 120 A 90 90 0 0 1 200 120"
@@ -86,7 +96,7 @@
 					<text x="110" y="100" text-anchor="middle" fill="currentColor" font-size="36" font-weight="bold">{gauge.pct}%</text>
 				</svg>
 				<div class="text-base font-medium text-center">{gauge.label}</div>
-				<div class="text-sm text-gray-400">{gauge.count} / {gauge.total} devices</div>
+				<div class="text-sm text-gray-400">{gauge.count} / {gauge.total}</div>
 			</div>
 			{/each}
 		</div>
@@ -106,10 +116,12 @@
 						<th class="text-base">Immy Missing ATG</th>
 						<th class="text-base">Ninja</th>
 						<th class="text-base">Ninja Missing ATG</th>
+						<th class="text-base">ConnectWise</th>
+						<th class="text-base">CW Missing ATG</th>
 					</tr>
 				</thead>
 				<tbody>
-					{#each orgStats as org}
+					{#each orgStats as org (org.id)}
 					<tr>
 						<td class="font-medium">{org.name}</td>
 						<td>
@@ -132,6 +144,14 @@
 								<span class="text-red-400">{org.ninjaNoAtg}</span>
 							{:else}
 								{org.ninjaNoAtg}
+							{/if}
+						</td>
+						<td>{org.cw}</td>
+						<td>
+							{#if org.cwNoAtg > 0}
+								<span class="text-red-400">{org.cwNoAtg}</span>
+							{:else}
+								{org.cwNoAtg}
 							{/if}
 						</td>
 					</tr>

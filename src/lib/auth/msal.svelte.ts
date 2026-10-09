@@ -1,6 +1,5 @@
 import { browser } from "$app/environment";
 import { PublicClientApplication, type AccountInfo, type AuthenticationResult } from "@azure/msal-browser";
-import { GetAccountResult } from "@azure/msal-browser/custom-auth";
 
 const msalConfig = {
     auth: {
@@ -13,7 +12,7 @@ const msalConfig = {
 export const msalInstance = new PublicClientApplication(msalConfig);
 await msalInstance.initialize();
 
-export var authInfo: {account: AccountInfo|null} = $state({
+export const authInfo: {account: AccountInfo|null} = $state({
     account: null
 })
 

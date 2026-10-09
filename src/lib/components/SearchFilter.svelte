@@ -16,8 +16,7 @@
         icon?: Snippet
     } = $props();
 
-    let displayItems = $state<SearchFilterItem[]>([]);
-    $effect(() => { displayItems = data; });
+    let displayItems: SearchFilterItem[] = $derived(data);
 
     const collection = $derived(useListCollection({
         items: displayItems,

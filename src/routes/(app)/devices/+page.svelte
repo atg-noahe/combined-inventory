@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Device, DeviceEntry } from "$lib/inventory/devices";
+	import { cwConfigUrl, sourceCount, sourceLabel, type Device, type DeviceEntry } from "$lib/inventory/devices";
 	import { onMount } from "svelte";
 	import { Dialog, Popover, Portal } from "@skeletonlabs/skeleton-svelte";
 	import { X } from "lucide-svelte";
@@ -10,6 +10,7 @@
 	import SearchFilter from "$lib/components/SearchFilter.svelte";
 	import { toaster } from "$lib/toast";
     import { v4 } from 'uuid'
+    import { SvelteMap } from "svelte/reactivity";
     import SortableTable, { type ColumnDef } from "$lib/components/SortableTable.svelte";
 
     let selected_devices: DeviceEntry[] = $state([]);
@@ -21,6 +22,7 @@
     let filters: FilterOption[] = $state([
         {"name": "ImmyBot", "value": "optional"},
         {"name": "Ninja", "value": "optional"},
+        {"name": "ConnectWise", "value": "optional"},
         {"name": "ATG ID", "value": "optional"}
     ])
 
@@ -71,26 +73,23 @@
     let linking: boolean = $state(false);
 
     let linkableDevices = $derived.by(() => {
-        const groups = new Map<string, DeviceEntry[]>();
+        const groups = new SvelteMap<string, DeviceEntry[]>();
         for (const d of devices) {
             const key = `${d.device_name}\0${d.rewst_org_id}`;
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key)!.push(d);
         }
 
-        const linkMap = new Map<string, DeviceEntry>();
+        const linkMap = new SvelteMap<string, DeviceEntry>();
         for (const [, group] of groups) {
-            if (group.length !== 2) continue;
-            const [a, b] = group;
-            const aHasAtg = a.atg_id != null;
-            const bHasAtg = b.atg_id != null;
-            const aHasOneService = (a.immybot_id != null) !== (a.ninja_id != null);
-            const bHasOneService = (b.immybot_id != null) !== (b.ninja_id != null);
-            if (!aHasOneService || !bHasOneService) continue;
-            if (aHasAtg && !bHasAtg) {
-                linkMap.set(b.object_id, a);
-            } else if (!aHasAtg && bHasAtg) {
-                linkMap.set(a.object_id, b);
+            if (group.length < 2) continue;
+            const withAtg = group.filter(d => d.atg_id != null);
+            if (withAtg.length !== 1) continue;
+            const source = withAtg[0];
+            for (const target of group) {
+                if (target === source || target.atg_id != null) continue;
+                if (sourceCount(target) !== 1) continue;
+                linkMap.set(target.object_id, source);
             }
         }
         return linkMap;
@@ -105,7 +104,8 @@
         const merged = {
             atg_id: atgId,
             immybot_id: source.immybot_id ?? linkTarget.immybot_id,
-            ninja_id: source.ninja_id ?? linkTarget.ninja_id
+            ninja_id: source.ninja_id ?? linkTarget.ninja_id,
+            cw_config_id: source.cw_config_id ?? linkTarget.cw_config_id
         };
         linking = true;
         try {
@@ -192,6 +192,7 @@
             result = result.filter(d => {
                 if (f.name === "ImmyBot") return required ? d.immybot_id != null : d.immybot_id == null;
                 if (f.name === "Ninja")   return required ? d.ninja_id != null : d.ninja_id == null;
+                if (f.name === "ConnectWise") return required ? d.cw_config_id != null : d.cw_config_id == null;
                 if (f.name === "ATG ID")  return required ? d.atg_id != null : d.atg_id == null;
                 return true;
             });
@@ -251,7 +252,7 @@
                                 <Dialog.Title class="text-lg font-bol">Are you sure you'd like to unmonitor these devices?</Dialog.Title>
                                 <Dialog.Description>
                                     <ul class="list-disc pl-5 max-h-48 overflow-y-auto space-y-1 my-2">
-                                        {#each selected_devices as dev}
+                                        {#each selected_devices as dev (dev.object_id)}
                                             <li class="text-sm">{dev.device_name}</li>
                                         {/each}
                                     </ul>
@@ -333,7 +334,7 @@
                                             <div class="text-xs text-gray-400">{pair.target.org_name}</div>
                                         </div>
                                         <div class="text-xs text-gray-400 text-right text-nowrap">
-                                            {pair.target.immybot_id != null ? 'ImmyBot' : 'Ninja'} &larr; {pair.source.immybot_id != null ? 'ImmyBot' : 'Ninja'}
+                                            {sourceLabel(pair.target)} &larr; {sourceLabel(pair.source)}
                                         </div>
                                     </button>
                                 {/each}
@@ -383,7 +384,7 @@
                 {#if device.atg_id}
                 <span class="badge bg-green-800" title={`ATG ID: ${device.atg_id}`}>ATG ID</span>
                 {:else}
-                <span class="badge outline text-gray-200" title={`Unidentified`}>ATG ID</span>
+                <span class="badge outline text-gray-200" title="Unidentified">ATG ID</span>
                 {/if}
                 {#if device.immybot_id}
                 <a href="http://atgfw.immy.bot/computers/{device.immybot_id}"
@@ -408,6 +409,18 @@
                 </a>
                 {:else}
                     <span class="badge bg-red-800">NinjaRMM</span>
+                {/if}
+                {#if device.cw_config_id}
+                <a href={cwConfigUrl(device.cw_config_id)}
+                    target="_blank" rel="external">
+                    <span
+                        class={`badge ${seen_recently(device.cw_last_updated) ? 'bg-green-800': 'bg-yellow-800'}`}
+                        title={`CW Config ID: ${device.cw_config_id}`}>
+                        ConnectWise
+                    </span>
+                </a>
+                {:else}
+                    <span class="badge bg-red-800">ConnectWise</span>
                 {/if}
             </td>
             <td>
@@ -436,6 +449,7 @@
                                 <div class="text-sm">
                                     <span class="badge text-xs {source?.immybot_id != null ? 'bg-green-800' : 'bg-red-800'}">ImmyBot</span>
                                     <span class="badge text-xs {source?.ninja_id != null ? 'bg-green-800' : 'bg-red-800'}">NinjaRMM</span>
+                                    <span class="badge text-xs {source?.cw_config_id != null ? 'bg-green-800' : 'bg-red-800'}">ConnectWise</span>
                                 </div>
                             </div>
                             <div class="p-3 rounded-lg border border-blue-800 space-y-1 overflow-hidden">
@@ -445,6 +459,7 @@
                                 <div class="text-sm">
                                     <span class="badge text-xs {linkTarget.immybot_id != null ? 'bg-green-800' : 'bg-red-800'}">ImmyBot</span>
                                     <span class="badge text-xs {linkTarget.ninja_id != null ? 'bg-green-800' : 'bg-red-800'}">NinjaRMM</span>
+                                    <span class="badge text-xs {linkTarget.cw_config_id != null ? 'bg-green-800' : 'bg-red-800'}">ConnectWise</span>
                                 </div>
                             </div>
                         </div>
